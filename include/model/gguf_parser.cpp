@@ -17,19 +17,37 @@ namespace llm_engine {
             uint32_t type = *reinterpret_cast<uint32_t*>(ptr); ptr += 4;
             if (type == 8) read_string(ptr); // STRING
             else if (type == 9) { // ARRAY
-                uint32_t arr_type = *reinterpret_cast<uint32_t*>(ptr); ptr += 4;
-                uint64_t arr_len = *reinterpret_cast<uint64_t*>(ptr); ptr += 8;
-                ptr += (arr_len * 8); 
+           uint32_t arr_type = *reinterpret_cast<uint32_t*>(ptr); ptr += 4;
+           uint64_t arr_len = *reinterpret_cast<uint64_t*>(ptr); ptr += 8;
+    // O ERRO PODE ESTAR AQUI:
+    // Se o array contiver strings, você não pode apenas pular (arr_len * 8)
+    // Você teria que ler cada string do array para pular corretamente.
+           ptr += (arr_len * 8);
             } else ptr += 8; // Tipos numéricos escalares
         }
     }
 }
 
 std::unordered_map<std::string, TensorInfo> GGUFParser::get_tensor_table() {    uint8_t* ptr = static_cast<uint8_t*>(mapper->data());
-    ptr += 8; // Pula Magic Number e Version
-    uint64_t n_tensors = *reinterpret_cast<uint64_t*>(ptr); ptr += 8;
-    uint64_t n_kv = *reinterpret_cast<uint64_t*>(ptr); ptr += 8;
+    uint8_t* ptr = static_cast<uint8_t*>(mapper->data());
+    
+    // Debug: verifique se os primeiros bytes fazem sentido
+    uint32_t magic = *reinterpret_cast<uint32_t*>(ptr);
+    std::cout << "Magic: " << std::hex << magic << std::dec << std::endl;
+    
+    ptr += 8; 
+    uint64_t n_tensors = *reinterpret_cast<uint64_t*>(ptr); 
+    ptr += 8;
+    uint64_t n_kv = *reinterpret_cast<uint64_t*>(ptr); 
+    ptr += 8;
 
+    std::cout << "Tentando ler " << n_tensors << " tensores e " << n_kv << " KV pairs." << std::endl;
+
+    if (n_tensors > 1000000 || n_kv > 1000000) {
+        std::cerr << "ERRO: Valores absurdos lidos do header! Desalinhamento detectado." << std::endl;
+        throw std::runtime_error("Desalinhamento do Parser GGUF");
+    }
+    
     llm_engine::skip_kv_pairs(ptr, n_kv);
     
     std::unordered_map<std::string, TensorInfo> table;

@@ -7,3 +7,6 @@ cmake -S . -B build
 
 # 3. Compila de novo
 cmake --build build --config Release
+
+# rodar modelo de IA F:\models-loader-engine>
+.\build\Release\llm_engine.exe "models\seu-modelo.gguf"
