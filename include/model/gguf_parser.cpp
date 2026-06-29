@@ -1,5 +1,8 @@
 #include "../../include/model/gguf_parser.hpp"
 #include <string>
+#include <fstream>
+#include <iostream>
+#include <vector>
 
 namespace llm_engine {
 
@@ -47,3 +50,30 @@ std::unordered_map<std::string, TensorInfo> GGUFParser::get_tensor_table() {
 }
 
 }
+
+struct GGUFHeader {
+    uint32_t magic;
+    uint32_t version;
+    uint64_t tensor_count;
+    uint64_t kv_count;
+};
+
+class GGUFParser {
+public:
+    bool load(const std::string& path) {
+        std::ifstream file(path, std::ios::binary);
+        if (!file.is_open()) return false;
+
+        GGUFHeader header;
+        file.read(reinterpret_cast<char*>(&header), sizeof(GGUFHeader));
+
+        // Verifique o Magic Number (0x46554747)
+        if (header.magic != 0x46554747) {
+            std::cerr << "Arquivo não é um GGUF válido!" << std::endl;
+            return false;
+        }
+
+        std::cout << "GGUF Versão: " << header.version << std::endl;
+        return true;
+    }
+};
