@@ -6,8 +6,10 @@ set(CMAKE_CXX_STANDARD 20)
 # Compila todos os .cpp que você colocar na pasta src
 file(GLOB_RECURSE SOURCES "src/*.cpp" "main.cpp")
 
-add_executable(llm_engine ${SOURCES})
-
+add_executable(llm_engine 
+    main.cpp
+    include/model/gguf_parser.cpp  # Garanta que este arquivo esteja aqui
+)
 # O compilador olha a pasta include para achar os seus .hpp
 target_include_directories(llm_engine PUBLIC include)
 

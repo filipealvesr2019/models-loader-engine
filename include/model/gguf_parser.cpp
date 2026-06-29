@@ -1,79 +1,48 @@
-#include "../../include/model/gguf_parser.hpp"
-#include <string>
-#include <fstream>
+#include "gguf_parser.hpp"
 #include <iostream>
-#include <vector>
 
 namespace llm_engine {
+    // Leitura segura de strings formatadas no padrão GGUF
+    std::string read_string(uint8_t*& ptr) {
+        uint64_t len = *reinterpret_cast<uint64_t*>(ptr); ptr += 8;
+        std::string str(reinterpret_cast<char*>(ptr), len);
+        ptr += len;
+        return str;
+    }
 
-// Função auxiliar para ler strings formatadas em GGUF
-std::string read_string(uint8_t*& ptr) {
-    uint64_t len = *reinterpret_cast<uint64_t*>(ptr);
-    ptr += 8;
-    std::string str(reinterpret_cast<char*>(ptr), len);
-    ptr += len;
-    return str;
+    // Pula os blocos KV (Key-Value) para chegar na tabela de tensores
+    void skip_kv_pairs(uint8_t*& ptr, uint64_t n_kv) {
+        for (uint64_t i = 0; i < n_kv; ++i) {
+            read_string(ptr); // Pula a chave (nome da propriedade)
+            uint32_t type = *reinterpret_cast<uint32_t*>(ptr); ptr += 4;
+            if (type == 8) read_string(ptr); // STRING
+            else if (type == 9) { // ARRAY
+                uint32_t arr_type = *reinterpret_cast<uint32_t*>(ptr); ptr += 4;
+                uint64_t arr_len = *reinterpret_cast<uint64_t*>(ptr); ptr += 8;
+                ptr += (arr_len * 8); 
+            } else ptr += 8; // Tipos numéricos escalares
+        }
+    }
 }
 
-std::unordered_map<std::string, TensorInfo> GGUFParser::get_tensor_table() {
-    uint8_t* ptr = static_cast<uint8_t*>(mapper.data());
-    ptr += 12; // Pula Magic (4) + Version (4) + N_KV (4)
+std::unordered_map<std::string, TensorInfo> GGUFParser::get_tensor_table() {    uint8_t* ptr = static_cast<uint8_t*>(mapper->data());
+    ptr += 8; // Pula Magic Number e Version
+    uint64_t n_tensors = *reinterpret_cast<uint64_t*>(ptr); ptr += 8;
+    uint64_t n_kv = *reinterpret_cast<uint64_t*>(ptr); ptr += 8;
 
-    // 1. Pular blocos KV (o motor não precisa deles agora, só dos tensores)
-    // Em um cenário real, aqui teríamos um loop que lê o tipo da KV e pula o tamanho
+    llm_engine::skip_kv_pairs(ptr, n_kv);
     
-    // 2. Ler número de tensores
-    uint64_t n_tensors = *reinterpret_cast<uint64_t*>(ptr);
-    ptr += 8;
-    
-    std::unordered_map<std::string, TensorInfo> tensor_table;
-    
-    // 3. Iterar e indexar cada tensor
+    std::unordered_map<std::string, TensorInfo> table;
     for (uint64_t i = 0; i < n_tensors; ++i) {
         TensorInfo info;
-        // Lógica de leitura seguindo a especificação GGUF:
-        // Nome -> N_dims -> Dimensions[] -> Type -> Offset
-        info.name = read_string(ptr);
+        info.name = llm_engine::read_string(ptr);
         info.n_dims = *reinterpret_cast<uint32_t*>(ptr); ptr += 4;
-        
         for(int d=0; d < info.n_dims; ++d) {
             info.shape[d] = *reinterpret_cast<uint64_t*>(ptr); ptr += 8;
         }
-        
         info.type = *reinterpret_cast<uint32_t*>(ptr); ptr += 4;
         info.offset = *reinterpret_cast<uint64_t*>(ptr); ptr += 8;
-        
-        tensor_table[info.name] = info;
+        table[info.name] = info;
     }
-    
-    return tensor_table;
+    return table;
 }
-
-}
-
-struct GGUFHeader {
-    uint32_t magic;
-    uint32_t version;
-    uint64_t tensor_count;
-    uint64_t kv_count;
-};
-
-class GGUFParser {
-public:
-    bool load(const std::string& path) {
-        std::ifstream file(path, std::ios::binary);
-        if (!file.is_open()) return false;
-
-        GGUFHeader header;
-        file.read(reinterpret_cast<char*>(&header), sizeof(GGUFHeader));
-
-        // Verifique o Magic Number (0x46554747)
-        if (header.magic != 0x46554747) {
-            std::cerr << "Arquivo não é um GGUF válido!" << std::endl;
-            return false;
-        }
-
-        std::cout << "GGUF Versão: " << header.version << std::endl;
-        return true;
-    }
-};

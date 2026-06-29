@@ -1,32 +1,21 @@
 #pragma once
 #include "../core/mapper.hpp"
-#include <vector>
 #include <string>
-#include <cstdint>
+#include <vector>
 #include <unordered_map>
-
-namespace llm_engine {
 
 struct TensorInfo {
     std::string name;
     uint32_t n_dims;
-    uint64_t shape[4]; // Suporte para até 4 dimensões
-    uint32_t type;     // Ex: 0 = FP32, 2 = Q4_0, etc.
-    size_t offset;     // Deslocamento relativo ao início dos dados (após o header)
+    uint64_t shape[4];
+    uint32_t type;
+    uint64_t offset;
 };
 
 class GGUFParser {
-private:
-    const ModelMapper& mapper;
-    
+    MemoryMapper* mapper = nullptr;
 public:
-    explicit GGUFParser(const ModelMapper& m) : mapper(m) {}
-
-    // Valida o header e pula para a tabela de tensores
-    void parse_metadata();
-
-    // Retorna a tabela indexada de todos os tensores
+    void init(const std::string& path) { mapper = new MemoryMapper(path); }
+    ~GGUFParser() { delete mapper; }
     std::unordered_map<std::string, TensorInfo> get_tensor_table();
 };
-
-}
