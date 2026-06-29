@@ -8,7 +8,8 @@ file(GLOB_RECURSE SOURCES "src/*.cpp" "main.cpp")
 
 add_executable(llm_engine 
     main.cpp
-    include/model/gguf_parser.cpp  # Garanta que este arquivo esteja aqui
+    include/model/gguf_parser.cpp
+    # Se você criar o timer como classe separada, adicione-o aqui
 )
 # O compilador olha a pasta include para achar os seus .hpp
 target_include_directories(llm_engine PUBLIC include)
