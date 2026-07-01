@@ -4,6 +4,7 @@
 #include "include/layers/linear.hpp"
 #include "include/model/model_graph.hpp"
 #include "include/model/model_loader.hpp"
+#include "include/model/verification.hpp"
 #include "include/layers/transformer_block.hpp"
 #include "src/kernels/cpu_kernels.hpp"
 #include <iostream>
@@ -107,6 +108,11 @@ int main(int argc, char* argv[]) {
             for (const auto& block : blocks) {
                 std::cout << "- " << block << std::endl;
             }
+
+            llm_engine::VerificationHarness verifier(parser);
+            const std::vector<float> dummy_input(256, 1.0f);
+            const bool verified = verifier.run_smoke_test("blk.0.ffn_gate.weight", dummy_input);
+            std::cout << "Smoke test verificado: " << verified << std::endl;
 
             auto real_load_start = std::chrono::high_resolution_clock::now();
             simulate_real_load(*parser.mapper());
