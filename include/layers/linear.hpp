@@ -1,28 +1,38 @@
 #pragma once
 #include "../core/tensor.hpp"
+#include "../../src/kernels/cpu_kernels.hpp"
+#include <algorithm>
+#include <cstddef>
 #include <vector>
-#include "../kernels/cpu_kernels.hpp" // Adicione esta linha!
-#include <vector>
+
 namespace llm_engine {
 
 class LinearLayer {
 private:
     TensorView weights;
-    // O bias é opcional em algumas camadas, mas vamos deixar preparado
-    TensorView bias; 
+    TensorView bias;
 
 public:
-    LinearLayer(TensorView w) : weights(w) {}
+    LinearLayer(TensorView w, TensorView b = {}) : weights(w), bias(b) {}
 
-    // Executa: y = x * W^T
-    // Em inferência de LLM, o formato dos tensores geralmente é [output_dim, input_dim]
-   void forward(const float* input, float* output, int in_dim, int out_dim) {
-            for (int i = 0; i < out_dim; ++i) {
-                const int8_t* row_ptr = weights.data<int8_t>() + (i * in_dim);
-                // Agora o compilador encontrará esta função
-                output[i] = dot_product_q8_0(row_ptr, input, in_dim);
-            }
+    void forward(const float* input, float* output, int in_dim, int out_dim) {
+        if (!weights.raw_data || !output || !input) {
+            return;
         }
+
+        std::vector<float> dequantized(in_dim);
+        for (int i = 0; i < out_dim; ++i) {
+            const auto* packed = static_cast<const uint8_t*>(weights.raw_data) + (i * in_dim);
+            dequantize_block_q2_k(packed, dequantized.data(), static_cast<size_t>(in_dim));
+
+            float acc = 0.0f;
+            for (int j = 0; j < in_dim; ++j) {
+                acc += input[j] * dequantized[j];
+            }
+
+            output[i] = acc + (bias.raw_data ? bias.data<float>()[i] : 0.0f);
+        }
+    }
 };
 
 }

@@ -1,6 +1,8 @@
 #include "include/model/gguf_parser.hpp"
 #include "include/core/timer.hpp"
 #include "include/core/tensor.hpp"
+#include "include/layers/linear.hpp"
+#include "include/model/model_graph.hpp"
 #include "src/kernels/cpu_kernels.hpp"
 #include <iostream>
 #include <vector>
@@ -130,10 +132,30 @@ int main(int argc, char* argv[]) {
                 const auto simd_us = std::chrono::duration_cast<std::chrono::microseconds>(simd_end - simd_start).count() / 10000.0f;
                 const float gain = 100.0f * (1.0f - (simd_us / scalar_us));
 
-                std::cout << "Benchmark Q2_K scalar: " << scalar_us << " us / bloco" << std::endl;
+                    std::cout << "Benchmark Q2_K scalar: " << scalar_us << " us / bloco" << std::endl;
                 std::cout << "Benchmark Q2_K AVX2: " << simd_us << " us / bloco" << std::endl;
                 std::cout << "Ganho estimado AVX2: " << gain << "%" << std::endl;
                 std::cout << "Primeiros valores: " << simd_out[0] << ", " << simd_out[1] << ", " << simd_out[2] << ", " << simd_out[3] << std::endl;
+
+                std::vector<float> input(256, 1.0f);
+                std::vector<float> output(16, 0.0f);
+                llm_engine::LinearLayer layer(tensor);
+                llm_engine::ModelGraph graph;
+                graph.add_layer("demo_linear", {
+                    "demo_linear",
+                    [&layer](const float* in, float* out, int in_dim, int out_dim) {
+                        layer.forward(in, out, in_dim, out_dim);
+                    },
+                    256,
+                    16
+                });
+
+                auto forward_start = std::chrono::high_resolution_clock::now();
+                graph.run("demo_linear", input.data(), output.data(), 256, 16);
+                auto forward_end = std::chrono::high_resolution_clock::now();
+                const auto forward_us = std::chrono::duration_cast<std::chrono::microseconds>(forward_end - forward_start).count();
+                std::cout << "Forward de uma camada pequena: " << forward_us << " us" << std::endl;
+                std::cout << "Primeiro output: " << output[0] << std::endl;
             }
         }
 
