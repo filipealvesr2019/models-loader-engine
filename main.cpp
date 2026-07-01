@@ -1,5 +1,6 @@
 #include "include/model/gguf_parser.hpp"
 #include "include/core/timer.hpp"
+#include "include/core/tensor.hpp"
 #include <iostream>
 #include <vector>
 #include <fstream>
@@ -41,6 +42,33 @@ int main(int argc, char* argv[]) {
         auto table = parser.get_tensor_table();
         std::cout << "Mmap (Zero-Copy): " << t2.elapsed_ms() << " ms" << std::endl;
         std::cout << "Tensores lidos: " << table.size() << std::endl;
+
+        if (!table.empty()) {
+            auto it = table.begin();
+            const auto& info = it->second;
+            std::array<uint64_t, 4> dims{};
+            size_t num_elements = 1;
+            for (uint32_t d = 0; d < info.n_dims; ++d) {
+                dims[d] = info.shape[d];
+                num_elements *= info.shape[d];
+            }
+
+            auto to_data_type = [](uint32_t raw_type) {
+                switch (raw_type) {
+                    case 0: return llm_engine::DataType::FP32;
+                    case 1: return llm_engine::DataType::FP16;
+                    case 2: return llm_engine::DataType::Q4_0;
+                    case 3: return llm_engine::DataType::Q8_0;
+                    default: return llm_engine::DataType::Q2_K;
+                }
+            };
+
+            auto* base = static_cast<uint8_t*>(parser.data());
+            llm_engine::TensorView tensor(base + info.offset, num_elements, to_data_type(info.type), dims);
+            std::cout << "Exemplo de tensor: " << it->first << " | elementos=" << tensor.num_elements
+                      << " | tipo=" << static_cast<uint32_t>(tensor.type) << std::endl;
+        }
+
         return 0;
     } catch (const std::exception& ex) {
         std::cerr << "Erro: " << ex.what() << std::endl;

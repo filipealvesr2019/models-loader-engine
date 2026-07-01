@@ -17,5 +17,6 @@ class GGUFParser {
 public:
     void init(const std::string& path) { mapper = new MemoryMapper(path); }
     ~GGUFParser() { delete mapper; }
+    void* data() { return mapper ? mapper->data() : nullptr; }
     std::unordered_map<std::string, TensorInfo> get_tensor_table();
 };
