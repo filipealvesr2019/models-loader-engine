@@ -158,9 +158,18 @@ int main(int argc, char* argv[]) {
                     256,
                     16
                 });
+                graph.add_layer("demo_linear_2", {
+                    "demo_linear_2",
+                    [&layer](const float* in, float* out, int in_dim, int out_dim) {
+                        layer.forward(in, out, in_dim, out_dim);
+                    },
+                    16,
+                    16
+                });
 
                 auto forward_start = std::chrono::high_resolution_clock::now();
-                graph.run("demo_linear", input.data(), output.data(), 256, 16);
+                std::vector<std::string> sequence = { "demo_linear", "demo_linear_2" };
+                graph.run_sequence(sequence, input.data(), output.data(), 256, 16);
                 auto forward_end = std::chrono::high_resolution_clock::now();
                 const auto forward_us = std::chrono::duration_cast<std::chrono::microseconds>(forward_end - forward_start).count();
                 std::cout << "Forward de uma camada pequena: " << forward_us << " us" << std::endl;

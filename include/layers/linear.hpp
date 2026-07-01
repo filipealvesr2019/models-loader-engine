@@ -20,13 +20,15 @@ public:
             return;
         }
 
-        std::vector<float> dequantized(in_dim);
+        constexpr size_t kQ2KBlockSize = 256;
+        std::vector<float> dequantized(kQ2KBlockSize, 0.0f);
         for (int i = 0; i < out_dim; ++i) {
-            const auto* packed = static_cast<const uint8_t*>(weights.raw_data) + (i * in_dim);
-            dequantize_block_q2_k(packed, dequantized.data(), static_cast<size_t>(in_dim));
+            const auto* packed = static_cast<const uint8_t*>(weights.raw_data) + (i * kQ2KBlockSize);
+            dequantize_block_q2_k(packed, dequantized.data(), kQ2KBlockSize);
 
             float acc = 0.0f;
-            for (int j = 0; j < in_dim; ++j) {
+            const int usable = std::min<int>(in_dim, static_cast<int>(kQ2KBlockSize));
+            for (int j = 0; j < usable; ++j) {
                 acc += input[j] * dequantized[j];
             }
 
