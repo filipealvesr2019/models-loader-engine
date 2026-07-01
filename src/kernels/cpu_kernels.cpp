@@ -1,6 +1,7 @@
 #include "../../include/core/tensor.hpp"
 #include "cpu_kernels.hpp"
 #include <immintrin.h> // Intrínsecas para AVX2 (x86_64)
+#include <cmath>
 #include <stdexcept>
 
 namespace llm_engine {
@@ -117,6 +118,33 @@ void dequantize_block_q2_k(const uint8_t* src, float* dst, size_t dst_size) {
         const size_t byte_index = i / 4;
         const uint8_t code = (packed[byte_index] >> ((i % 4) * 2)) & 0x3;
         dst[i] = coeffs[code];
+    }
+}
+
+void rms_norm(const float* x, float* y, size_t n, float eps) {
+    if (!x || !y) {
+        throw std::invalid_argument("x and y must be non-null");
+    }
+
+    float sum_sq = 0.0f;
+    for (size_t i = 0; i < n; ++i) {
+        const float v = x[i];
+        sum_sq += v * v;
+    }
+
+    const float inv_rms = 1.0f / std::sqrt(sum_sq / static_cast<float>(n) + eps);
+    for (size_t i = 0; i < n; ++i) {
+        y[i] = x[i] * inv_rms;
+    }
+}
+
+void add_vectors(const float* a, const float* b, float* out, size_t n) {
+    if (!a || !b || !out) {
+        throw std::invalid_argument("a, b and out must be non-null");
+    }
+
+    for (size_t i = 0; i < n; ++i) {
+        out[i] = a[i] + b[i];
     }
 }
 

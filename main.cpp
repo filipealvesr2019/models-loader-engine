@@ -156,6 +156,13 @@ int main(int argc, char* argv[]) {
                 const auto forward_us = std::chrono::duration_cast<std::chrono::microseconds>(forward_end - forward_start).count();
                 std::cout << "Forward de uma camada pequena: " << forward_us << " us" << std::endl;
                 std::cout << "Primeiro output: " << output[0] << std::endl;
+
+                std::vector<float> normalized(256, 0.0f);
+                std::vector<float> residual(256, 0.0f);
+                llm_engine::rms_norm(input.data(), normalized.data(), input.size());
+                llm_engine::add_vectors(input.data(), normalized.data(), residual.data(), input.size());
+                std::cout << "RMSNorm primeiro valor: " << normalized[0] << std::endl;
+                std::cout << "Residual primeiro valor: " << residual[0] << std::endl;
             }
         }
 
