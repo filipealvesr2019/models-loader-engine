@@ -3,6 +3,7 @@
 #include "include/core/tensor.hpp"
 #include "include/layers/linear.hpp"
 #include "include/model/model_graph.hpp"
+#include "include/model/model_loader.hpp"
 #include "include/layers/transformer_block.hpp"
 #include "src/kernels/cpu_kernels.hpp"
 #include <iostream>
@@ -99,6 +100,13 @@ int main(int argc, char* argv[]) {
             llm_engine::TensorView tensor(base + info.offset, num_elements, to_data_type(info.type), dims);
             std::cout << "Exemplo de tensor: " << it->first << " | elementos=" << tensor.num_elements
                       << " | tipo=" << static_cast<uint32_t>(tensor.type) << std::endl;
+
+            llm_engine::ModelLoader loader(parser);
+            const auto blocks = loader.list_blocks();
+            std::cout << "Blocos descobertos: " << blocks.size() << std::endl;
+            for (const auto& block : blocks) {
+                std::cout << "- " << block << std::endl;
+            }
 
             auto real_load_start = std::chrono::high_resolution_clock::now();
             simulate_real_load(*parser.mapper());
