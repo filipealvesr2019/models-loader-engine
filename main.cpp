@@ -3,6 +3,7 @@
 #include "include/core/tensor.hpp"
 #include "include/layers/linear.hpp"
 #include "include/model/model_graph.hpp"
+#include "include/layers/transformer_block.hpp"
 #include "src/kernels/cpu_kernels.hpp"
 #include <iostream>
 #include <vector>
@@ -163,6 +164,17 @@ int main(int argc, char* argv[]) {
                 llm_engine::add_vectors(input.data(), normalized.data(), residual.data(), input.size());
                 std::cout << "RMSNorm primeiro valor: " << normalized[0] << std::endl;
                 std::cout << "Residual primeiro valor: " << residual[0] << std::endl;
+
+                llm_engine::LinearLayer attn_layer(tensor);
+                llm_engine::LinearLayer mlp_layer(tensor);
+                llm_engine::TransformerBlock block(attn_layer, mlp_layer);
+                std::vector<float> block_output(256, 0.0f);
+                auto block_start = std::chrono::high_resolution_clock::now();
+                block.forward(input.data(), block_output.data(), 256);
+                auto block_end = std::chrono::high_resolution_clock::now();
+                const auto block_us = std::chrono::duration_cast<std::chrono::microseconds>(block_end - block_start).count();
+                std::cout << "Transformer block: " << block_us << " us" << std::endl;
+                std::cout << "Primeiro output do bloco: " << block_output[0] << std::endl;
             }
         }
 
