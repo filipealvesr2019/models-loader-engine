@@ -114,6 +114,7 @@ int main(int argc, char* argv[]) {
             const auto verification = verifier.run_verification_and_latency("blk.0.ffn_gate.weight", dummy_input);
             std::cout << "Smoke test verificado: " << verification.passed << std::endl;
             std::cout << "Latencia de inferencia: " << verification.latency_ms << " ms" << std::endl;
+            std::cout << "RSS (Working Set): " << verification.rss_kb << " KB" << std::endl;
 
             auto real_load_start = std::chrono::high_resolution_clock::now();
             simulate_real_load(*parser.mapper());

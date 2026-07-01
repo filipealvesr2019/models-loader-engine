@@ -10,6 +10,8 @@
 #include <numeric>
 #include <string>
 #include <vector>
+#include <windows.h>
+#include <psapi.h>
 
 namespace llm_engine {
 
@@ -31,7 +33,16 @@ private:
 struct VerificationResult {
     bool passed;
     double latency_ms;
+    size_t rss_kb;
 };
+
+inline size_t current_rss_kb() {
+    PROCESS_MEMORY_COUNTERS pmc{};
+    if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+        return 0;
+    }
+    return pmc.WorkingSetSize / 1024;
+}
 
 class VerificationHarness {
 public:
@@ -83,7 +94,7 @@ public:
         auto it = table.find(tensor_name);
         if (it == table.end()) {
             std::cerr << "Tensor not found for latency benchmark: " << tensor_name << std::endl;
-            return {passed, 0.0};
+            return {passed, 0.0, current_rss_kb()};
         }
 
         const auto& info = it->second;
@@ -116,8 +127,10 @@ public:
         block.forward(warmup_input.data(), output.data(), static_cast<int>(warmup_input.size()));
         const double latency_ms = tracker.end_ms();
 
+        const size_t rss_kb = current_rss_kb();
         std::cout << "Latencia de inferencia (warm-up + medida): " << latency_ms << " ms" << std::endl;
-        return {passed, latency_ms};
+        std::cout << "RSS (Working Set): " << rss_kb << " KB" << std::endl;
+        return {passed, latency_ms, rss_kb};
     }
 
 private:
