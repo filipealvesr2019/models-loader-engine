@@ -111,8 +111,9 @@ int main(int argc, char* argv[]) {
 
             llm_engine::VerificationHarness verifier(parser);
             const std::vector<float> dummy_input(256, 1.0f);
-            const bool verified = verifier.run_smoke_test("blk.0.ffn_gate.weight", dummy_input);
-            std::cout << "Smoke test verificado: " << verified << std::endl;
+            const auto verification = verifier.run_verification_and_latency("blk.0.ffn_gate.weight", dummy_input);
+            std::cout << "Smoke test verificado: " << verification.passed << std::endl;
+            std::cout << "Latencia de inferencia: " << verification.latency_ms << " ms" << std::endl;
 
             auto real_load_start = std::chrono::high_resolution_clock::now();
             simulate_real_load(*parser.mapper());
