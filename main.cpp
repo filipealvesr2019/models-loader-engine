@@ -1,10 +1,30 @@
 #include "include/model/gguf_parser.hpp"
 #include "include/core/timer.hpp"
 #include "include/core/tensor.hpp"
+#include "src/kernels/cpu_kernels.hpp"
 #include <iostream>
 #include <vector>
 #include <fstream>
 #include <stdexcept>
+#include <filesystem>
+#include <chrono>
+#include <algorithm>
+#include <windows.h>
+#include <psapi.h>
+
+static void log_efficiency(const std::filesystem::path& model_path) {
+    PROCESS_MEMORY_COUNTERS pmc{};
+    if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+        std::cerr << "Falha ao coletar memoria do processo" << std::endl;
+        return;
+    }
+
+    const auto file_size = std::filesystem::file_size(model_path);
+    std::cout << "\n--- Telemetria de Eficiencia ---" << std::endl;
+    std::cout << "Arquivo GGUF: " << (file_size / (1024 * 1024)) << " MB" << std::endl;
+    std::cout << "Working Set (RAM): " << (pmc.WorkingSetSize / (1024 * 1024)) << " MB" << std::endl;
+    std::cout << "Overhead relativo ao arquivo: " << (100.0 * pmc.WorkingSetSize / std::max<uint64_t>(1, file_size)) << "%" << std::endl;
+}
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
@@ -67,6 +87,23 @@ int main(int argc, char* argv[]) {
             llm_engine::TensorView tensor(base + info.offset, num_elements, to_data_type(info.type), dims);
             std::cout << "Exemplo de tensor: " << it->first << " | elementos=" << tensor.num_elements
                       << " | tipo=" << static_cast<uint32_t>(tensor.type) << std::endl;
+
+            log_efficiency(path);
+
+            const size_t block_bytes = 256;
+            const size_t available_bytes = std::min<size_t>(block_bytes, static_cast<size_t>(std::filesystem::file_size(path) - info.offset));
+            if (available_bytes >= block_bytes) {
+                std::vector<float> dequantized(256);
+                auto start = std::chrono::high_resolution_clock::now();
+                for (int i = 0; i < 1000; ++i) {
+                    llm_engine::dequantize_block_q2_k(base + info.offset, dequantized.data(), dequantized.size());
+                }
+                auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::high_resolution_clock::now() - start);
+
+                std::cout << "Benchmark Q2_K: " << (elapsed.count() / 1000.0f) << " us / bloco" << std::endl;
+                std::cout << "Primeiros valores: " << dequantized[0] << ", " << dequantized[1] << ", " << dequantized[2] << ", " << dequantized[3] << std::endl;
+            }
         }
 
         return 0;
