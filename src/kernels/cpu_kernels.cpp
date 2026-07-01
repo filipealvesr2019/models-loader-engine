@@ -34,7 +34,7 @@ float dot_product_q8_0(const int8_t* a, const float* b, size_t n) {
            result[4] + result[5] + result[6] + result[7];
 }
 
-void dequantize_block_q2_k(const uint8_t* src, float* dst, size_t dst_size) {
+void dequantize_block_q2_k_scalar(const uint8_t* src, float* dst, size_t dst_size) {
     if (!src || !dst) {
         throw std::invalid_argument("src and dst must be non-null");
     }
@@ -59,6 +59,64 @@ void dequantize_block_q2_k(const uint8_t* src, float* dst, size_t dst_size) {
             case 2: dst[i] = base1; break;
             default: dst[i] = base1 * 1.25f; break;
         }
+    }
+}
+
+void dequantize_block_q2_k(const uint8_t* src, float* dst, size_t dst_size) {
+    if (!src || !dst) {
+        throw std::invalid_argument("src and dst must be non-null");
+    }
+
+    constexpr size_t qk = 256;
+    if (dst_size < qk) {
+        throw std::invalid_argument("dst_size must be at least 256 for Q2_K");
+    }
+
+    const uint16_t scale0 = static_cast<uint16_t>(src[0]) | (static_cast<uint16_t>(src[1]) << 8);
+    const uint16_t scale1 = static_cast<uint16_t>(src[2]) | (static_cast<uint16_t>(src[3]) << 8);
+    const float base0 = static_cast<float>(scale0) / 4096.0f;
+    const float base1 = static_cast<float>(scale1) / 4096.0f;
+    const float scale0_up = base0 * 1.25f;
+    const float scale1_up = base1 * 1.25f;
+
+    const float coeffs[4] = { base0, scale0_up, base1, scale1_up };
+    const uint8_t* packed = src + 4;
+
+    size_t i = 0;
+    for (; i + 15 < qk; i += 16) {
+        const uint8_t byte0 = packed[i / 4];
+        const uint8_t byte1 = packed[(i / 4) + 1];
+        const uint8_t code0 = byte0 & 0x3;
+        const uint8_t code1 = (byte0 >> 2) & 0x3;
+        const uint8_t code2 = (byte0 >> 4) & 0x3;
+        const uint8_t code3 = (byte0 >> 6) & 0x3;
+        const uint8_t code4 = byte1 & 0x3;
+        const uint8_t code5 = (byte1 >> 2) & 0x3;
+        const uint8_t code6 = (byte1 >> 4) & 0x3;
+        const uint8_t code7 = (byte1 >> 6) & 0x3;
+
+        const __m256 lane0 = _mm256_setr_ps(coeffs[code0], coeffs[code1], coeffs[code2], coeffs[code3], coeffs[code4], coeffs[code5], coeffs[code6], coeffs[code7]);
+        _mm256_store_ps(dst + i, lane0);
+
+        const uint8_t byte2 = packed[(i / 4) + 2];
+        const uint8_t byte3 = packed[(i / 4) + 3];
+        const uint8_t code8 = byte2 & 0x3;
+        const uint8_t code9 = (byte2 >> 2) & 0x3;
+        const uint8_t code10 = (byte2 >> 4) & 0x3;
+        const uint8_t code11 = (byte2 >> 6) & 0x3;
+        const uint8_t code12 = byte3 & 0x3;
+        const uint8_t code13 = (byte3 >> 2) & 0x3;
+        const uint8_t code14 = (byte3 >> 4) & 0x3;
+        const uint8_t code15 = (byte3 >> 6) & 0x3;
+
+        const __m256 lane1 = _mm256_setr_ps(coeffs[code8], coeffs[code9], coeffs[code10], coeffs[code11], coeffs[code12], coeffs[code13], coeffs[code14], coeffs[code15]);
+        _mm256_store_ps(dst + i + 8, lane1);
+    }
+
+    for (; i < qk; ++i) {
+        const size_t byte_index = i / 4;
+        const uint8_t code = (packed[byte_index] >> ((i % 4) * 2)) & 0x3;
+        dst[i] = coeffs[code];
     }
 }
 

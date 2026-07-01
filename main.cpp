@@ -111,16 +111,29 @@ int main(int argc, char* argv[]) {
             const size_t block_bytes = 256;
             const size_t available_bytes = std::min<size_t>(block_bytes, static_cast<size_t>(std::filesystem::file_size(path) - info.offset));
             if (available_bytes >= block_bytes) {
-                std::vector<float> dequantized(256);
-                auto start = std::chrono::high_resolution_clock::now();
-                for (int i = 0; i < 1000; ++i) {
-                    llm_engine::dequantize_block_q2_k(base + info.offset, dequantized.data(), dequantized.size());
-                }
-                auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::high_resolution_clock::now() - start);
+                std::vector<float> scalar_out(256);
+                std::vector<float> simd_out(256);
 
-                std::cout << "Benchmark Q2_K: " << (elapsed.count() / 1000.0f) << " us / bloco" << std::endl;
-                std::cout << "Primeiros valores: " << dequantized[0] << ", " << dequantized[1] << ", " << dequantized[2] << ", " << dequantized[3] << std::endl;
+                auto scalar_start = std::chrono::high_resolution_clock::now();
+                for (int i = 0; i < 10000; ++i) {
+                    llm_engine::dequantize_block_q2_k_scalar(base + info.offset, scalar_out.data(), scalar_out.size());
+                }
+                auto scalar_end = std::chrono::high_resolution_clock::now();
+
+                auto simd_start = std::chrono::high_resolution_clock::now();
+                for (int i = 0; i < 10000; ++i) {
+                    llm_engine::dequantize_block_q2_k(base + info.offset, simd_out.data(), simd_out.size());
+                }
+                auto simd_end = std::chrono::high_resolution_clock::now();
+
+                const auto scalar_us = std::chrono::duration_cast<std::chrono::microseconds>(scalar_end - scalar_start).count() / 10000.0f;
+                const auto simd_us = std::chrono::duration_cast<std::chrono::microseconds>(simd_end - simd_start).count() / 10000.0f;
+                const float gain = 100.0f * (1.0f - (simd_us / scalar_us));
+
+                std::cout << "Benchmark Q2_K scalar: " << scalar_us << " us / bloco" << std::endl;
+                std::cout << "Benchmark Q2_K AVX2: " << simd_us << " us / bloco" << std::endl;
+                std::cout << "Ganho estimado AVX2: " << gain << "%" << std::endl;
+                std::cout << "Primeiros valores: " << simd_out[0] << ", " << simd_out[1] << ", " << simd_out[2] << ", " << simd_out[3] << std::endl;
             }
         }
 
