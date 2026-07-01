@@ -13,10 +13,12 @@ struct TensorInfo {
 };
 
 class GGUFParser {
-    MemoryMapper* mapper = nullptr;
+    MemoryMapper* mapper_ = nullptr;
 public:
-    void init(const std::string& path) { mapper = new MemoryMapper(path); }
-    ~GGUFParser() { delete mapper; }
-    void* data() { return mapper ? mapper->data() : nullptr; }
+    void init(const std::string& path) { mapper_ = new MemoryMapper(path); }
+    ~GGUFParser() { delete mapper_; }
+    void* data() { return mapper_ ? mapper_->data() : nullptr; }
+    MemoryMapper* mapper_ptr() { return mapper_; }
+    const MemoryMapper* mapper() const { return mapper_; }
     std::unordered_map<std::string, TensorInfo> get_tensor_table();
 };

@@ -6,6 +6,7 @@
 class MemoryMapper {
     HANDLE hFile, hMap;
     void* data_ptr;
+    size_t file_size_bytes;
 public:
     MemoryMapper(const std::string& path) {
         hFile = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -25,6 +26,8 @@ public:
             throw std::runtime_error("Falha ao mapear arquivo: " + path);
         }
 
+        file_size_bytes = static_cast<size_t>(fileSize.QuadPart);
+
         data_ptr = MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, 0);
         if (!data_ptr) {
             CloseHandle(hMap);
@@ -38,4 +41,6 @@ public:
         if (hFile) CloseHandle(hFile);
     }
     void* data() { return data_ptr; }
+    void* data() const { return data_ptr; }
+    size_t size() const { return file_size_bytes; }
 };

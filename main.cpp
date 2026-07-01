@@ -12,7 +12,16 @@
 #include <windows.h>
 #include <psapi.h>
 
-static void log_efficiency(const std::filesystem::path& model_path) {
+static void simulate_real_load(const MemoryMapper& mapper) {
+    const auto* data = static_cast<const uint8_t*>(mapper.data());
+    const auto size = mapper.size();
+    volatile uint8_t sum = 0;
+    for (size_t i = 0; i < size; i += 4096) {
+        sum += data[i];
+    }
+}
+
+static void log_efficiency(const std::filesystem::path& model_path, const MemoryMapper& mapper) {
     PROCESS_MEMORY_COUNTERS pmc{};
     if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
         std::cerr << "Falha ao coletar memoria do processo" << std::endl;
@@ -88,7 +97,16 @@ int main(int argc, char* argv[]) {
             std::cout << "Exemplo de tensor: " << it->first << " | elementos=" << tensor.num_elements
                       << " | tipo=" << static_cast<uint32_t>(tensor.type) << std::endl;
 
-            log_efficiency(path);
+            auto real_load_start = std::chrono::high_resolution_clock::now();
+            simulate_real_load(*parser.mapper());
+            auto real_load_end = std::chrono::high_resolution_clock::now();
+            auto real_load_ms = std::chrono::duration<double, std::milli>(real_load_end - real_load_start).count();
+            const auto file_size = std::filesystem::file_size(path);
+            const double gb_per_s = (file_size / (1024.0 * 1024.0 * 1024.0)) / (real_load_ms / 1000.0);
+            std::cout << "Carga real (touch pages): " << real_load_ms << " ms" << std::endl;
+            std::cout << "Taxa de transferencia estimada: " << gb_per_s << " GB/s" << std::endl;
+
+            log_efficiency(path, *parser.mapper());
 
             const size_t block_bytes = 256;
             const size_t available_bytes = std::min<size_t>(block_bytes, static_cast<size_t>(std::filesystem::file_size(path) - info.offset));

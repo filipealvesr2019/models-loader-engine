@@ -45,7 +45,7 @@ void skip_value(uint8_t*& ptr, uint32_t type) {
 } // namespace llm_engine
 
 std::unordered_map<std::string, TensorInfo> GGUFParser::get_tensor_table() {
-    uint8_t* ptr = static_cast<uint8_t*>(mapper->data());
+    uint8_t* ptr = static_cast<uint8_t*>(mapper_->data());
 
     const uint32_t magic = llm_engine::read_value<uint32_t>(ptr);
     if (magic != 0x46554747) {
